@@ -21,8 +21,12 @@ import javax.management.openmbean.CompositeDataSupport;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.SimpleType;
 import java.lang.invoke.MethodHandles;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -57,6 +61,9 @@ import org.apache.activemq.artemis.reader.MessageUtil;
 import org.apache.activemq.artemis.utils.ByteUtil;
 import org.apache.activemq.artemis.utils.collections.TypedProperties;
 import org.apache.qpid.proton.amqp.Binary;
+import org.apache.qpid.proton.amqp.Decimal128;
+import org.apache.qpid.proton.amqp.Decimal32;
+import org.apache.qpid.proton.amqp.Decimal64;
 import org.apache.qpid.proton.amqp.Symbol;
 import org.apache.qpid.proton.amqp.UnsignedByte;
 import org.apache.qpid.proton.amqp.UnsignedInteger;
@@ -74,6 +81,7 @@ import org.apache.qpid.proton.amqp.messaging.Properties;
 import org.apache.qpid.proton.amqp.messaging.Section;
 import org.apache.qpid.proton.codec.DecoderImpl;
 import org.apache.qpid.proton.codec.DroppingWritableBuffer;
+import org.apache.qpid.proton.codec.EncodingCodes;
 import org.apache.qpid.proton.codec.ReadableBuffer;
 import org.apache.qpid.proton.codec.TypeConstructor;
 import org.apache.qpid.proton.codec.WritableBuffer;
@@ -1972,7 +1980,9 @@ public abstract class AMQPMessage extends RefCountMessage implements org.apache.
          } else {
             Object amqpValue;
             if (m.getBody() instanceof AmqpValue && (amqpValue = ((AmqpValue) m.getBody()).getValue()) != null) {
-               rc.put(CompositeDataConstants.TEXT_BODY, JsonUtil.truncateString(String.valueOf(amqpValue), valueSizeLimit));
+               //rc.put(CompositeDataConstants.TEXT_BODY, JsonUtil.truncateString(String.valueOf(amqpValue), valueSizeLimit));
+               String bodyTxt = amqpValue + "\n\n" + formatAmqpMessage((AMQPStandardMessage)m, 0x77);
+               rc.put(CompositeDataConstants.TEXT_BODY, bodyTxt);
             } else {
                rc.put(CompositeDataConstants.TEXT_BODY, JsonUtil.truncateString(String.valueOf(m.getBody()), valueSizeLimit));
             }
@@ -2031,6 +2041,469 @@ public abstract class AMQPMessage extends RefCountMessage implements org.apache.
 
          return type;
       }
+
+      private String formatAmqpMessage(AMQPStandardMessage amqpMessage, int wantedDescriptor) throws OpenDataException {
+         ByteBuffer msgBuf = ByteBuffer.wrap(amqpMessage.data.array());
+         StringBuilder out = new StringBuilder();
+         try {
+            if (wantedDescriptor > 0) {
+               StringBuilder junk = new StringBuilder();
+               while (msgBuf.hasRemaining()) {
+                  if (msgBuf.remaining() >= 3 &&
+                     msgBuf.get(msgBuf.position()) == 0x00 &&
+                     msgBuf.get(msgBuf.position() + 1) == 0x53 &&
+                     msgBuf.get(msgBuf.position() + 2) == wantedDescriptor) {
+                     // we found the correct section
+                     msgBuf.get(); // 0x00 described type indicator
+                     msgBuf.get(); // 0x53 smallulong
+                     msgBuf.get(); // 0x77 00000000:00000077 amqp-value
+                     break;
+                  }
+                  // reuse the junk-buffer each time
+                  junk.setLength(0);
+                  decode(0, -1, msgBuf, junk, false, null, null);
+               }
+               // only display this level
+               if (msgBuf.hasRemaining()) {
+                  decode(0, -1, msgBuf, out, false, null, null);
+               }
+               // there may be a trailer block; or the blocks may have a strange order
+               while (msgBuf.hasRemaining()) {
+                  junk.setLength(0);
+                  decode(0, -1, msgBuf, junk, false, null, null);
+               }
+            }
+            while (msgBuf.hasRemaining()) {
+               decode(0, -1, msgBuf, out, false, null, null);
+            }
+         } catch (Exception ex) {
+            out.append("\n\nEXCEPTION:\n\n");
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            ex.printStackTrace(pw);
+            out.append(sw.getBuffer());
+         }
+         return out.toString().trim();
+      }
+
+      private static void hexdump(ByteBuffer bbuf, int pos1, StringBuilder out) {
+         int pos2 = bbuf.position();
+         for (int i = pos1; i < pos2; i++) {
+            int b = bbuf.get(i);
+            if (b < 0) b += 0x100;
+            out.append(String.format("%02X ",  b));
+         }
+      }
+
+      static final String[] descriptor70 = {
+         "header",
+         "durable",
+         "priority",
+         "ttl",
+         "first-acquirer",
+         "delivery-count"
+      };
+
+      static final String[] descriptor71 = {
+         "delivery-annotations"
+      };
+
+      static final String[] descriptor72 = {
+         "message-annotations"
+      };
+
+      static final String[] descriptor73 = {
+         "properties",
+         "message-id",
+         "user-id",
+         "to",
+         "subject",
+         "reply-to",
+         "correlation-id",
+         "content-type",
+         "content-encoding",
+         "absolute-expiry-time",
+         "creation-time",
+         "group-id",
+         "group-sequence",
+         "reply-to-group-id"
+      };
+
+      static final String[] descriptor74 = {
+         "application-properties"
+      };
+
+      static final String[] descriptor75 = {
+         "data"
+      };
+
+      static final String[] descriptor76 = {
+         "amqp-sequence"
+      };
+
+      static final String[] descriptor77 = {
+         "amqp-value"
+      };
+
+      static final String[] descriptor78 = {
+         "footer"
+      };
+
+      static final Map<String,String[]> descriptors = new HashMap<>();
+
+      static {
+         // we are not interested in the descriptors 0x23..0x2e
+         // because these are for use in control messages that do not
+         // end up in the message store
+         descriptors.put("00000000:00000070", descriptor70);
+         descriptors.put("00000000:00000071", descriptor71);
+         descriptors.put("00000000:00000072", descriptor72);
+         descriptors.put("00000000:00000073", descriptor73);
+         descriptors.put("00000000:00000074", descriptor74);
+         descriptors.put("00000000:00000075", descriptor75);
+         descriptors.put("00000000:00000076", descriptor76);
+         descriptors.put("00000000:00000077", descriptor77);
+         descriptors.put("00000000:00000078", descriptor78);
+      }
+
+      SimpleDateFormat sdf;
+
+      private String[] decode(int indent, int type, ByteBuffer bbuf, StringBuilder out, boolean showDescribedTypeIndicator, String extraInfo, String[] descriptor) throws OpenDataException {
+
+         outIndent(indent, out);
+
+         // remember where we started decoding
+         int pos1 = bbuf.position();
+
+         // arrays have predefined types
+         // then each element does not have a type byte
+         if (type == -1) {
+            type = (int) getInteger(bbuf, EncodingCodes.BYTE);
+         }
+
+         String typeStr = getTypeStr(type);
+
+         switch(type) {
+            case EncodingCodes.DESCRIBED_TYPE_INDICATOR: // 0x00
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               eol(out, extraInfo);
+               descriptor = decode(indent + 1, -1, bbuf, out, true, "described type indicator", null);
+               decode(indent + 1, -1, bbuf, out, true, null, descriptor);
+               break;
+            case EncodingCodes.NULL: // 0x40
+            case EncodingCodes.BOOLEAN_TRUE: // 0x41
+            case EncodingCodes.BOOLEAN_FALSE: // 0x42
+            case EncodingCodes.UINT0: // 0x43
+            case EncodingCodes.ULONG0: // 0x44
+            case EncodingCodes.LIST0: // 0x45
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               eol(out, extraInfo);
+               break;
+            case EncodingCodes.UBYTE: // 0x50
+            case EncodingCodes.SMALLUINT: // 0x52
+            case EncodingCodes.SMALLULONG: // 0x53
+            case EncodingCodes.BYTE: // 0x51
+            case EncodingCodes.SMALLINT: // 0x54
+            case EncodingCodes.SMALLLONG: // 0x55
+            case EncodingCodes.BOOLEAN: // 0x56
+            case EncodingCodes.USHORT: // 0x60
+            case EncodingCodes.SHORT: // 0x61
+            case EncodingCodes.UINT: // 0x70
+            case EncodingCodes.INT: // 0x71
+            case EncodingCodes.CHAR: // 0x73
+            case EncodingCodes.ULONG: // 0x80
+            case EncodingCodes.LONG: // 0x81
+            case EncodingCodes.TIMESTAMP: // 0x83
+               long n = getInteger(bbuf, type);
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               if (type == EncodingCodes.SMALLULONG && showDescribedTypeIndicator) {
+                  descriptor = addDescribedTypeIndicator(out, 0, n);
+               } else if (type == EncodingCodes.BOOLEAN) {
+                  out.append(String.format(" %d (%s)", n, n == 0 ? "false" : "true"));
+               } else if (type == EncodingCodes.CHAR) {
+                  String charName;
+                  try {
+                     charName = Character.getName((int)n);
+                  } catch (IllegalArgumentException iae) {
+                     charName = "not a valid UTF-32BE Unicode code point";
+                  }
+                  out.append(String.format(" %d (%s)", n, charName));
+               } else if (type == EncodingCodes.TIMESTAMP) {
+                  Date x8date = new Date(n);
+                  if (sdf == null) {
+                     // lazy initialization
+                     sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+                  }
+                  String x8dateStr = sdf.format(x8date);
+                  out.append(String.format(" 0x%08X (%s)", n, x8dateStr));
+               } else {
+                  out.append(String.format(" %d/0x%X", n, n));
+               }
+               eol(out, extraInfo);
+               return descriptor;
+            case EncodingCodes.FLOAT: // 0x72
+            case EncodingCodes.DECIMAL32: // 0x74
+            case EncodingCodes.DOUBLE: // 0x82
+            case EncodingCodes.DECIMAL64: // 0x84
+            case EncodingCodes.DECIMAL128: // 0x94
+               double d = getDouble(bbuf, type);
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               if (type == EncodingCodes.DECIMAL32 || type == EncodingCodes.DECIMAL64 || type == EncodingCodes.DECIMAL128) {
+                  // QPID does not support this yet, it always returns 0.0
+               } else {
+                  out.append(' ');
+                  out.append(d);
+               }
+               eol(out, extraInfo);
+               break;
+            case EncodingCodes.UUID: // 0x98
+               // see RFC4122
+               long uua = getInteger(bbuf, EncodingCodes.UINT);
+               long uub = getInteger(bbuf, EncodingCodes.USHORT);
+               long uuc = getInteger(bbuf, EncodingCodes.USHORT);
+               long uud = getInteger(bbuf, EncodingCodes.USHORT);
+               long uue1 = getInteger(bbuf, EncodingCodes.USHORT);
+               long uue2 = getInteger(bbuf, EncodingCodes.USHORT);
+               long uue3 = getInteger(bbuf, EncodingCodes.USHORT);
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               out.append(String.format(" %08X-%04X-%04X-%04X-%04X%04X%04X", uua, uub, uuc, uud, uue1, uue2, uue3));
+               eol(out, extraInfo);
+               break;
+            case EncodingCodes.VBIN8: // 0xa0
+            case EncodingCodes.STR8: // 0xa1
+            case EncodingCodes.SYM8: // 0xa3
+            case EncodingCodes.VBIN32: // 0xb0
+            case EncodingCodes.STR32: // 0xb1
+            case EncodingCodes.SYM32: // 0xb3
+               long len = getInteger(bbuf, type);
+               hexdump(bbuf, pos1, out);
+               // do not dump the text bytes by collecting the array
+               // after the bytes are printed
+               byte[] buf = new byte[(int)len];
+               bbuf.get(buf);
+               // alternative representation
+               out.append("[...] ");
+               out.append(typeStr);
+               out.append(String.format(" len=%d", len));
+               StringBuilder str;
+               int uselen;
+               if (type == EncodingCodes.VBIN8 || type == EncodingCodes.VBIN32) {
+                  uselen = (int) Math.min(len, 33);
+                  str = new StringBuilder(3 * uselen);
+                  for (int i = 0; i < uselen; i++) {
+                     str.append(String.format(" %02X", buf[i] & 0xFF));
+                  }
+                  out.append(str);
+               } else {
+                  uselen = (int) Math.min(len, 100);
+                  str = new StringBuilder(uselen + 3);
+                  str.append(new String(buf, 0, uselen, StandardCharsets.UTF_8));
+                  out.append(" \"");
+                  out.append(str);
+                  out.append('"');
+               }
+               if (uselen < len) {
+                  out.append("...");
+               }
+               eol(out, extraInfo);
+               break;
+            case EncodingCodes.LIST8: // 0xc0
+            case EncodingCodes.MAP8: // 0xc1
+            case EncodingCodes.LIST32: // 0xd0
+            case EncodingCodes.MAP32: // 0xd1
+               long lstbytes = getInteger(bbuf, type);
+               long lstcnt = getInteger(bbuf, type);
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               out.append(String.format(" bytes=%d elements=%d", lstbytes, lstcnt));
+               if (type == EncodingCodes.MAP8 || type == EncodingCodes.MAP32) {
+                  // reminder that a map is actually a list of name+value items
+                  out.append(String.format(" (pairs=%d)", lstcnt / 2));
+               }
+               eol(out, extraInfo);
+               for (int i = 0; i < lstcnt; i++) {
+                  String newExtraInfo = null;
+                  if (type == EncodingCodes.MAP8 || type == EncodingCodes.MAP32) {
+                     // even entries are keys, odd entries are values
+                     newExtraInfo = (i % 2 == 0) ? "key" : "value";
+                     newExtraInfo += "#" + (i / 2);
+                  } else if (type == EncodingCodes.LIST8 || type == EncodingCodes.LIST32) {
+                     if (descriptor == null) {
+                        // VOID
+                     } else if (i + 1 < descriptor.length) {
+                        newExtraInfo = descriptor[i + 1];
+                     } else {
+                        // the payload of the message is tagged as amqp-value
+                        // but it does not have fields, so do not complain
+                        // newExtraInfo = "missing " + i;
+                     }
+                  }
+                  decode(indent + 1, -1, bbuf, out, false, newExtraInfo, null);
+               }
+               for (int nr = (int)lstcnt + 1; descriptor != null && nr < descriptor.length; nr++) {
+                  outIndent(indent + 1, out);
+                  // we choose to not list additional stuff such as default values
+                  // showing the default fields enhances the understanding of the
+                  // message and prevents confusion about un-findable fields
+                  out.append(String.format("default (%s)\n", descriptor[nr]));
+               }
+               break;
+            case EncodingCodes.ARRAY8: // 0xe0
+            case EncodingCodes.ARRAY32: // 0xf0
+               long arrbytes = getInteger(bbuf, type);
+               long arrcnt  = getInteger(bbuf, type);
+               int arrtype = (int) getInteger(bbuf, EncodingCodes.UBYTE);
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               out.append(String.format(" bytes=%d elements=%d type=%02X/%s", arrbytes, arrcnt, arrtype, getTypeStr(arrtype)));
+               eol(out, extraInfo);
+               if (arrtype == EncodingCodes.DESCRIBED_TYPE_INDICATOR) {
+                  decode(indent + 1, -1, bbuf, out, false, "described type indicator for array", null);
+                  arrtype = (int) getInteger(bbuf, EncodingCodes.UBYTE);
+               }
+               for (int i = 0; i < arrcnt; i++) {
+                  decode(indent + 1, arrtype, bbuf, out, false, "#" + i, null);
+               }
+               break;
+            default: // unknown type
+               hexdump(bbuf, pos1, out);
+               out.append(typeStr);
+               eol(out, extraInfo);
+         }
+
+         return descriptor;
+      }
+
+      private static String getTypeStr(int type) {
+         String typeStr = EncodingCodes.toString((byte)type);
+
+         // strip the numeric part of the type name
+         typeStr = typeStr.replaceFirst(":0x[0-9A-Fa-f][0-9A-Fa-f]", "");
+
+         // fix for ARRAY8 that is otherwise displayed as ARRAY32 (just as the real ARRAY32)
+         // see also https://github.com/apache/qpid-proton-j/pull/42
+         if (type == EncodingCodes.ARRAY8) {
+            typeStr = "ARRAY8";
+         }
+
+         return typeStr;
+      }
+
+      private static void outIndent(int indent, StringBuilder out) {
+         for (int i = 0; i < indent; i++) {
+            out.append("   ");
+         }
+      }
+
+      private static double getDouble(ByteBuffer bbuf, int type) throws OpenDataException {
+         switch(type) {
+            case EncodingCodes.FLOAT: // 0x72
+               float f4 = bbuf.getFloat();
+               return f4;
+            case EncodingCodes.DOUBLE: // 0x82
+               double d8 = bbuf.getDouble();
+               return d8;
+            case EncodingCodes.DECIMAL32: // 0x74
+               int x4 = bbuf.getInt();
+               Decimal32 xd4 = new Decimal32(x4);
+               return xd4.doubleValue();
+            case EncodingCodes.DECIMAL64: // 0x84
+               long x8 = bbuf.getLong();
+               Decimal64 xd8 = new Decimal64(x8);
+               return xd8.doubleValue();
+            case EncodingCodes.DECIMAL128: // 0x94
+               long x8a = bbuf.getLong();
+               long x8b = bbuf.getLong();
+               Decimal128 xd16 = new Decimal128(x8a, x8b);
+               // we lose precision here, never mind
+               return xd16.doubleValue();
+            default:
+               throw new OpenDataException("getDouble type=" + type);
+         }
+      }
+
+      private static long getInteger(ByteBuffer bbuf, int type) throws OpenDataException {
+         switch(type) {
+            case EncodingCodes.UBYTE: // 0x50
+            case EncodingCodes.SMALLUINT: // 0x52
+            case EncodingCodes.SMALLULONG: // 0x53
+            case EncodingCodes.BOOLEAN: // 0x56
+            case EncodingCodes.VBIN8: // 0xa0
+            case EncodingCodes.STR8: // 0xa1
+            case EncodingCodes.SYM8: // 0xa3
+            case EncodingCodes.LIST8: // 0xc0
+            case EncodingCodes.MAP8: // 0xc1
+            case EncodingCodes.ARRAY8: // 0xe0
+               int u1 = bbuf.get();
+               if (u1 < 0) u1 += 0x100;
+               return u1;
+            case EncodingCodes.BYTE: // 0x51
+            case EncodingCodes.SMALLINT: // 0x54
+            case EncodingCodes.SMALLLONG: // 0x55
+               int s1 = bbuf.get();
+               return s1;
+
+            case EncodingCodes.USHORT: // 0x60
+               int u2 = bbuf.getShort();
+               if (u2 < 0) u2 += 0x10000;
+               return u2;
+            case EncodingCodes.SHORT: // 0x61
+               int s2 = bbuf.getShort();
+               return s2;
+
+            case EncodingCodes.UINT: // 0x70
+            case EncodingCodes.CHAR: // 0x73
+            case EncodingCodes.VBIN32: // 0xb0
+            case EncodingCodes.STR32: // 0xb1
+            case EncodingCodes.SYM32: // 0xb3
+            case EncodingCodes.LIST32: // 0xd0
+            case EncodingCodes.MAP32: // 0xd1
+            case EncodingCodes.ARRAY32: // 0xf0
+               long u4 = bbuf.getInt();
+               if (u4 < 0) u4 += 0x100000000L;
+               return u4;
+            case EncodingCodes.INT: // 0x71
+               int s4 = bbuf.getInt();
+               return s4;
+
+            case EncodingCodes.ULONG: // 0x80
+               // java does not have unsigned long
+               long u8 = bbuf.getLong();
+               return u8;
+            case EncodingCodes.LONG: // 0x81
+            case EncodingCodes.TIMESTAMP: // 0x83
+               long s8 = bbuf.getLong();
+               return s8;
+
+            default:
+               throw new OpenDataException("getInteger type=" + type);
+         }
+      }
+
+      private static void eol(StringBuilder out, String extraInfo) {
+         if (extraInfo != null) {
+            out.append(" (");
+            out.append(extraInfo);
+            out.append(')');
+         }
+         out.append("\n");
+      }
+
+      private static String[] addDescribedTypeIndicator(StringBuilder out, long indicator1, long indicator2) {
+         String indicatorStr = String.format("%08X:%08X", indicator1, indicator2);
+         if (!descriptors.containsKey(indicatorStr)) {
+            out.append(String.format(" (%s)", indicatorStr));
+            return null;
+         }
+         String[] descriptor = descriptors.get(indicatorStr);
+         out.append(String.format(" (%s=%s)", indicatorStr, descriptor[0]));
+         return descriptor;
+      }
    }
 
    @Override
@@ -2042,5 +2515,4 @@ public abstract class AMQPMessage extends RefCountMessage implements org.apache.
 
    // Composite Data implementation
    // *******************************************************************************************************************************
-
 }

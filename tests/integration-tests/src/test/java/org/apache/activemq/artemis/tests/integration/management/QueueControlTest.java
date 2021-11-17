@@ -107,7 +107,7 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.activemq.artemis.core.message.openmbean.CompositeDataConstants.BODY;
+import static org.apache.activemq.artemis.core.message.openmbean.CompositeDataConstants.TEXT_BODY;
 import static org.apache.activemq.artemis.core.message.openmbean.CompositeDataConstants.STRING_PROPERTIES;
 
 @RunWith(value = Parameterized.class)
@@ -4117,13 +4117,13 @@ public class QueueControlTest extends ManagementTestBase {
 
       Assert.assertEquals(2, browse.length);
 
-      byte[] body = (byte[]) browse[0].get(BODY);
+      byte[] body = (byte[]) browse[0].get(TEXT_BODY);
 
       Assert.assertNotNull(body);
 
       Assert.assertEquals(new String(body), "theBody");
 
-      body = (byte[]) browse[1].get(BODY);
+      body = (byte[]) browse[1].get(TEXT_BODY);
 
       Assert.assertNotNull(body);
 
@@ -4278,7 +4278,7 @@ public class QueueControlTest extends ManagementTestBase {
 
       Assert.assertEquals(2, browse.length);
 
-      byte[] body = (byte[]) browse[0].get(BODY);
+      byte[] body = (byte[]) browse[0].get(TEXT_BODY);
 
       String messageID = (String) browse[0].get("userID");
 
@@ -4288,7 +4288,7 @@ public class QueueControlTest extends ManagementTestBase {
 
       Assert.assertEquals(new String(body), "theBody");
 
-      body = (byte[]) browse[1].get(BODY);
+      body = (byte[]) browse[1].get(TEXT_BODY);
 
       messageID = (String) browse[1].get("userID");
 
@@ -4321,7 +4321,7 @@ public class QueueControlTest extends ManagementTestBase {
 
       Assert.assertEquals(2, browse.length);
 
-      byte[] body = (byte[]) browse[0].get(BODY);
+      byte[] body = (byte[]) browse[0].get(TEXT_BODY);
 
       for (Object prop : ((TabularDataSupport)browse[0].get(STRING_PROPERTIES)).values()) {
          CompositeDataSupport cds = (CompositeDataSupport) prop;
@@ -4333,7 +4333,7 @@ public class QueueControlTest extends ManagementTestBase {
 
       Assert.assertEquals(new String(body), "theBody");
 
-      body = (byte[]) browse[1].get(BODY);
+      body = (byte[]) browse[1].get(TEXT_BODY);
 
       Assert.assertNotNull(body);
 

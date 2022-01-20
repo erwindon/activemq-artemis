@@ -1096,6 +1096,17 @@ public interface AuditLogger {
    @LogMessage(id = 601135, value = "User {} is listing network topology on target resource: {}", level = LogMessage.Level.INFO)
    void listNetworkTopology(String user, Object source);
 
+
+
+   static void getBrokerDetails(Object source) {
+      BASE_LOGGER.getBrokerDetails(getCaller(), source);
+   }
+
+   @LogMessage(id = 601277, value = "User {} is getting broker details on target resource: {} {}", level = LogMessage.Level.INFO)
+   void getBrokerDetails(String user, Object source, Object... args);
+
+
+
    static void removeNotificationListener(Object source, Object... args) {
       BASE_LOGGER.removeNotificationListener(getCaller(), source, parametersList(args));
    }

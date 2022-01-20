@@ -73,6 +73,7 @@ var Artemis;
                 ctrl.infoStatus.info[0] = "version: " + response.value;
             }));
             jolokia.request({ type: 'read', mbean: mbean, attribute: 'HAPolicy'}, Core.onSuccess(function(response) {
+// e.g. "Replicated" or "Replica"
                 ctrl.clusterInfoStatus.info[2] = "HA Policy: " + response.value;
             }));
             loadStatus();
@@ -131,6 +132,8 @@ var Artemis;
             var lives = 0;
             var backups = 0;
             var response = jolokia.request({ type: 'exec', mbean: mbean, operation: 'listNetworkTopology()' }, Core.onSuccess(null));
+// {"nodeID":"829cd887-7934-11ec-b678-0242ac140006","live":"shore-rs-2:61616"},
+// {"nodeID":"82cd5eaf-7934-11ec-bb01-0242ac140008","live":"shore-rs-0:61616","backup":"shore-rs-1:61616"}
             var responseValue = response.value;
             var brokers = angular.fromJson(responseValue);
             angular.forEach(brokers, function (broker) {
@@ -141,17 +144,29 @@ var Artemis;
                     backups++;
                 }
             })
+            var response2 = jolokia.request({ type: 'exec', mbean: mbean, operation: 'getBrokerDetails()' }, Core.onSuccess(null));
+// {"thisBroker":"THIS1","masterBroker":"THIS2","slaveBroker":"THIS3"}
+            var response2Value = response2.value;
             ctrl.clusterInfoStatus.info[0] = "Lives: " + lives;
             ctrl.clusterInfoStatus.info[1] = "Backups: " + backups;
             if (ctrl.clusterInfoStatus.info[2] == "HA Policy: Replicated") {
                 jolokia.request({ type: 'read', mbean: mbean, attribute: 'ReplicaSync'}, Core.onSuccess(function(response) {
                     ctrl.clusterInfoStatus.info[3] = "replicating: " + response.value;
+                    if (response2Value.slaveBroker) {
+                        ctrl.clusterInfoStatus.info[3] += ", to " + response2Value.slaveBroker
+                    }
                     if (response.value == false) {
                         ctrl.clusterInfoStatus.iconClass = "pficon pficon-error-circle-o";
                     } else {
                         ctrl.clusterInfoStatus.iconClass = "pficon pficon-ok";
                     }
                 }));
+            }
+            if (ctrl.clusterInfoStatus.info[2] == "HA Policy: Replica") {
+                ctrl.clusterInfoStatus.info[3] = "replicating: " + (!!response2Value.masterBroker);
+                if (response2Value.masterBroker) {
+                    ctrl.clusterInfoStatus.info[3] += ", from " + response2Value.masterBroker;
+                }
             }
         }
     }

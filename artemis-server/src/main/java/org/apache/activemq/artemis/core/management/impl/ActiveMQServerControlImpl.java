@@ -4199,7 +4199,28 @@ public class ActiveMQServerControlImpl extends AbstractControl implements Active
                }
             }
          }
+logger.warn("BROKERS=" + brokers.build().toString());
          return brokers.build().toString();
+      } finally {
+         blockOnIO();
+      }
+   }
+
+   @Override
+   public String getBrokerDetails() throws Exception {
+      if (AuditLogger.isBaseLoggingEnabled()) {
+         AuditLogger.getBrokerDetails(this.server);
+      }
+      checkStarted();
+
+      clearIO();
+      try {
+         JsonObjectBuilder obj = JsonLoader.createObjectBuilder();
+         obj.add("thisBroker", "THIS1");
+         obj.add("masterBroker", "THIS2");
+         obj.add("slaveBroker", "THIS3");
+logger.warn("BROKERDETAILS=" + obj.build().toString());
+         return obj.build().toString();
       } finally {
          blockOnIO();
       }

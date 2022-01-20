@@ -1902,6 +1902,9 @@ public interface ActiveMQServerControl {
    @Operation(desc = "List the Network Topology", impact = MBeanOperationInfo.INFO)
    String listNetworkTopology() throws Exception;
 
+   @Operation(desc = "Get broker details", impact = MBeanOperationInfo.INFO)
+   String getBrokerDetails() throws Exception;
+
    @Operation(desc = "Get the selected address", impact = MBeanOperationInfo.INFO)
    String getAddressInfo(@Parameter(name = "address", desc = "The address") String address) throws ActiveMQAddressDoesNotExistException;
 

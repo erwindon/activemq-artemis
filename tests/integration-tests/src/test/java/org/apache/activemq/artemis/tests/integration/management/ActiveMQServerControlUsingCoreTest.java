@@ -1435,6 +1435,11 @@ public class ActiveMQServerControlUsingCoreTest extends ActiveMQServerControlTes
          }
 
          @Override
+         public String getBrokerDetails() throws Exception {
+            return (String) proxy.invokeOperation("getBrokerDetails");
+         }
+
+         @Override
          public String getAddressInfo(String address) throws ActiveMQAddressDoesNotExistException {
             return null;
          }

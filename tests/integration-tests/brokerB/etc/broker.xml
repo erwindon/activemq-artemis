@@ -1,0 +1,344 @@
+<?xml version='1.0'?>
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<!-- BROKER_TYPE-SEQNR = apps-0 -->
+
+<!-- BROKER_CLUSTER_PASSWORD = 6136212ac439085ffe2752cb66ae45be47a96aa9ca060324f055e40d34dd2e33 -->
+
+<!-- SSLMODECLIENT = both -->
+
+<!-- OBIS NOTE -->
+<!-- error messages in jinja2 are hard; "msg"/0 is the best so far -->
+<!-- shows as a mathematical exception, but does the trick -->
+
+<!-- MYHOST = 10.100.0.16 -->
+
+<configuration xmlns="urn:activemq"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xmlns:xi="http://www.w3.org/2001/XInclude"
+               xsi:schemaLocation="urn:activemq /schema/artemis-configuration.xsd">
+
+   <core xmlns="urn:activemq:core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="urn:activemq:core ">
+
+      <name>brokerB</name>
+
+      <!-- OBIS: OK on shore -->
+      <persistence-enabled>true</persistence-enabled>
+
+      <!-- OBIS: explicitly enabled -->
+      <jmx-management-enabled>true</jmx-management-enabled>
+
+      <!-- OBIS: this prefix is a virtual prefix -->
+      <!-- it is used only to find address-settings for temporary queues -->
+      <temporary-queue-namespace>temp</temporary-queue-namespace>
+
+      <!-- OBIS: try to evacuate a server before leaving the cluster -->
+      <!-- clients have 30 seconds to evacuate and reconnect to another broker -->
+      <!-- may not be enough to evacuate all persistent data though -->
+      <!-- not tested yet -->
+      <graceful-shutdown-enabled>true</graceful-shutdown-enabled>
+      <graceful-shutdown-timeout>30000</graceful-shutdown-timeout>
+
+      <!-- this could be ASYNCIO, MAPPED, NIO
+           ASYNCIO: Linux Libaio
+           MAPPED: mmap files
+           NIO: Plain Java Files
+       -->
+      <journal-type>ASYNCIO</journal-type>
+
+      <paging-directory>data/paging</paging-directory>
+
+      <bindings-directory>data/bindings</bindings-directory>
+
+      <journal-directory>data/journal</journal-directory>
+
+      <large-messages-directory>data/large-messages</large-messages-directory>
+
+      <!-- OBIS -->
+      <!-- we prefer speed over absolute retention -->
+      <!-- broker-crashes still do not lose messages, -->
+      <!-- only disk problems, so this should be acceptable -->
+      <journal-datasync>false</journal-datasync>
+
+      <journal-min-files>2</journal-min-files>
+
+      <journal-pool-files>10</journal-pool-files>
+
+      <journal-device-block-size>4096</journal-device-block-size>
+
+      <journal-file-size>10M</journal-file-size>
+            <!--
+        You can verify the network health of a particular NIC by specifying the <network-check-NIC> element.
+         <network-check-NIC>theNicName</network-check-NIC>
+        -->
+
+      <!-- OBIS -->
+      <!-- messages larger than this buffer automatically -->
+      <!-- become large messages. enlarge to prevent that from -->
+      <!-- happening below our minimum -->
+      <journal-buffer-size>110000</journal-buffer-size>
+
+      <!--
+        Use this to use an HTTP server to validate the network
+         <network-check-URL-list>http://www.apache.org</network-check-URL-list> -->
+
+      <!-- <network-check-period>10000</network-check-period> -->
+      <!-- <network-check-timeout>1000</network-check-timeout> -->
+
+      <!-- this is a comma separated list, no spaces, just DNS or IPs
+           it should accept IPV6
+
+           Warning: Make sure you understand your network topology as this is meant to validate if your network is valid.
+                    Using IPs that could eventually disappear or be partially visible may defeat the purpose.
+                    You can use a list of multiple IPs, and if any successful ping will make the server OK to continue running -->
+      <!-- <network-check-list>10.0.0.1</network-check-list> -->
+
+      <!-- use this to customize the ping used for ipv4 addresses -->
+      <!-- <network-check-ping-command>ping -c 1 -t %d %s</network-check-ping-command> -->
+
+      <!-- use this to customize the ping used for ipv6 addresses -->
+      <!-- <network-check-ping6-command>ping6 -c 1 %2$s</network-check-ping6-command> -->
+
+
+
+
+      <!-- how often we are looking for how many bytes are being used on the disk in ms -->
+      <disk-scan-period>5000</disk-scan-period>
+
+      <!-- once the disk hits this limit the system will block, or close the connection in certain protocols
+           that won't support flow control. -->
+      <max-disk-usage>90</max-disk-usage>
+
+      <!-- should the broker detect dead locks and other issues -->
+      <critical-analyzer>true</critical-analyzer>
+
+      <critical-analyzer-timeout>120000</critical-analyzer-timeout>
+
+      <critical-analyzer-check-period>60000</critical-analyzer-check-period>
+
+      <critical-analyzer-policy>HALT</critical-analyzer-policy>
+            <!-- the system will enter into page mode once you hit this limit.
+            This is an estimate in bytes of how much the messages are using in memory
+
+            The system will use half of the available memory (-Xmx) by default for the global-max-size.
+            You may specify a different value here if you need to customize it to your needs. -->
+      <global-max-size>1024Mb</global-max-size>
+
+
+
+      <wildcard-addresses>
+         <!--routing-enabled>true</routing-enabled-->
+         <!-- OBIS: overrule delimiter to match other messaging systems, e.g. Azure SB -->
+         <delimiter>/</delimiter>
+         <!--any-words>#</any-words-->
+         <!--single-word>*</single-word-->
+      </wildcard-addresses>
+
+
+
+      <acceptors>
+         <!-- _SSLOPTIONS = verifyHost=false;needClientAuth=false;keyStorePath=/tmp/cert.jks;keyStorePassword=b3ce3a2fa4d2297819676f21fbee82e8f2b3bde414fcc525bac56d0396b70fa2 -->
+
+         <!-- for prefixes see: http://activemq.apache.org/components/artemis/documentation/latest/address-model.html#using-prefixes-to-determine-routing-type -->
+         <acceptor name="core">tcp://0.0.0.0:61619?tcpSendBufferSize=10485760;tcpReceiveBufferSize=10485760;useEpoll=true;anycastPrefix=anycast:;multicastPrefix=multicast:;protocols=AMQP,CORE;amqpCredits=10000;amqpLowCredits=300;amqpMinLargeMessageSize=100000;amqpDuplicateDetection=true;sslEnabled=false</acceptor>
+
+
+         <!-- AMQP Acceptor.  Listens on default AMQP port for AMQP traffic.-->
+         <!-- for prefixes see: http://activemq.apache.org/components/artemis/documentation/latest/address-model.html#using-prefixes-to-determine-routing-type -->
+         <!-- 5 for administration overhead -->
+
+         <!-- STOMP Acceptor. -->
+         <!-- OBIS: disabled -->
+
+         <!-- HornetQ Compatibility Acceptor.  Enables HornetQ Core and STOMP for legacy HornetQ clients. -->
+         <!-- OBIS: disabled -->
+
+         <!-- MQTT Acceptor -->
+         <!-- OBIS: disabled -->
+      </acceptors>
+
+
+
+      <security-settings>
+         <security-setting match="#">
+            <permission type="createNonDurableQueue" roles="amq"/>
+            <permission type="deleteNonDurableQueue" roles="amq"/>
+            <permission type="createDurableQueue" roles="amq"/>
+            <permission type="deleteDurableQueue" roles="amq"/>
+            <permission type="createAddress" roles="amq"/>
+            <permission type="deleteAddress" roles="amq"/>
+            <permission type="consume" roles="amq"/>
+            <permission type="browse" roles="amq"/>
+            <permission type="send" roles="amq"/>
+            <!-- we need this otherwise ./artemis data imp wouldn't work -->
+            <permission type="manage" roles="amq"/>
+         </security-setting>
+      </security-settings>
+
+
+
+      <address-settings>
+         <!--default for catch all-->
+         <address-setting match="#">
+            <!-- OBIS: auto-create for expiry/dlq so that they need not be predefined -->
+            <auto-create-expiry-resources>true</auto-create-expiry-resources>
+            <auto-create-dead-letter-resources>true</auto-create-dead-letter-resources>
+
+            <dead-letter-address>DLQ</dead-letter-address>
+            <expiry-address>ExpiryQueue</expiry-address>
+            <redelivery-delay>0</redelivery-delay>
+            <!-- with -1 only the global-max-size is in use for limiting -->
+            <max-size-bytes>-1</max-size-bytes>
+            <message-counter-history-day-limit>10</message-counter-history-day-limit>
+            <address-full-policy>PAGE</address-full-policy>
+            <auto-delete-queues>true</auto-delete-queues>
+            <auto-delete-created-queues>false</auto-delete-created-queues>
+            <auto-delete-queues-delay>14400000</auto-delete-queues-delay>
+            <auto-delete-addresses>true</auto-delete-addresses>
+            <auto-delete-addresses-delay>14400000</auto-delete-addresses-delay>
+            <!-- OBIS: redistribute messages across the cluster as needed -->
+            <redistribution-delay>1</redistribution-delay>
+            <!-- OBIS: show larger part of message on console (was 256) -->
+            <!-- note that the webconsole loads this number of bytes -->
+            <!-- for each message in the Browse Queue table -->
+            <!-- the user may select 100msgs/page! -->
+            <management-message-attribute-size-limit>2048</management-message-attribute-size-limit>
+            <!-- OBIS: everything autocreate, permissions determine whether actually allowed -->
+            <auto-create-addresses>true</auto-create-addresses>
+            <auto-create-queues>true</auto-create-queues>
+            <!-- OBIS: by default everything is pubsub -->
+            <default-address-routing-type>MULTICAST</default-address-routing-type>
+            <default-queue-routing-type>MULTICAST</default-queue-routing-type>
+            <!-- OBIS: autodelete even when never really used -->
+            <auto-delete-addresses-skip-usage-check>true</auto-delete-addresses-skip-usage-check>
+         </address-setting>
+
+         <!-- OBIS: Make sure that expired messages go away -->
+         <!-- And do not put messages back on the queue -->
+         <!-- by not specifying an expiry-address here -->
+         <address-setting match="ExpiryQueue">
+            <!-- no expiry-address -->
+            <expiry-address></expiry-address>
+            <expiry-delay>60000</expiry-delay>
+            <min-expiry-delay>60000</min-expiry-delay>
+            <max-expiry-delay>60000</max-expiry-delay>
+         </address-setting>
+         <address-setting match="DLQ">
+            <!-- no expiry-address -->
+            <expiry-address></expiry-address>
+            <expiry-delay>60000</expiry-delay>
+            <min-expiry-delay>60000</min-expiry-delay>
+            <max-expiry-delay>60000</max-expiry-delay>
+         </address-setting>
+      </address-settings>
+
+
+
+      <addresses>
+         <address name="DLQ">
+            <multicast>
+            </multicast>
+         </address>
+         <address name="ExpiryQueue">
+            <multicast>
+            </multicast>
+         </address>
+      </addresses>
+
+
+
+      <!-- OBIS: "shore" cluster configuration start -->
+
+
+
+      <cluster-user>aap</cluster-user>
+      <cluster-password>noot</cluster-password>
+
+
+
+      <!-- OBIS: ha-policy -->
+      <ha-policy>
+         <live-only>
+         </live-only>
+      </ha-policy>
+
+
+
+      <connectors>
+         <connector name="broker1">tcp://localhost:61618</connector>
+         <connector name="broker2">tcp://localhost:61619</connector>
+      </connectors>
+
+      <cluster-connections>
+         <cluster-connection name="cluster1">
+            <address></address>
+            <!-- see comment with actual connector -->
+            <connector-ref>broker2</connector-ref>
+            <check-period>5000</check-period>
+            <connection-ttl>60000</connection-ttl>
+            <min-large-message-size>100000</min-large-message-size>
+            <!-- call-timeout -->
+            <retry-interval>5000</retry-interval>
+            <!-- retry-interval-multiplier -->
+            <!-- max-retry-interval -->
+
+            <!-- in a scaling cluster, this must not be infinite -->
+            <!-- otherwise nodes will never leave the cluster -->
+            <!-- the values are multiples of the retry-interval -->
+            <!-- we trust the jgroups administration on startup, so 15m -->
+            <initial-connect-attempts>180</initial-connect-attempts>
+            <!-- we trust the jgroups administration less on runtime as things may have changed, so 5m -->
+            <reconnect-attempts>60</reconnect-attempts>
+
+            <use-duplicate-detection>true</use-duplicate-detection>
+            <message-load-balancing>ON_DEMAND</message-load-balancing>
+            <max-hops>1</max-hops>
+            <call-failover-timeout>30000</call-failover-timeout>
+            <static-connectors>
+               <connector-ref>broker1</connector-ref>
+            </static-connectors>
+         </cluster-connection>
+      </cluster-connections>
+
+
+
+      <metrics>
+         <jvm-memory>false</jvm-memory> <!-- defaults to true, but leave that to the jmx_prometheus_javaagent, same as for all java prgs -->
+         <jvm-gc>false</jvm-gc> <!-- defaults to false -->
+         <jvm-threads>false</jvm-threads> <!-- defaults to false -->
+         <netty-pool>false</netty-pool> <!-- defaults to false -->
+         <logging>true</logging> <!-- defaults to false -->
+      </metrics>
+
+
+
+      <!-- OBIS: "shore" cluster configuration end -->
+
+
+
+      <!-- Uncomment the following if you want to use the Standard LoggingActiveMQServerPlugin pluging to log in events -->
+      <broker-plugins>
+
+
+      </broker-plugins>
+
+   </core>
+</configuration>

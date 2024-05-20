@@ -312,6 +312,7 @@
                <plugin>
                   <groupId>org.apache.maven.plugins</groupId>
                   <artifactId>maven-compiler-plugin</artifactId>
+                  <version>2.5.1</version>
                   <configuration>
                      <compilerArgs>
                         <arg>-Xdiags:verbose</arg>
@@ -343,6 +344,7 @@
                <plugin>
                   <groupId>org.apache.maven.plugins</groupId>
                   <artifactId>maven-compiler-plugin</artifactId>
+                  <version>2.5.1</version>
                   <configuration>
                      <fork>true</fork>
                      <compilerArgs>

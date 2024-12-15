@@ -4807,6 +4807,13 @@
                            </xsd:documentation>
                         </xsd:annotation>
                      </xsd:attribute>
+                     <xsd:attribute name="inherit" type="xsd:boolean" use="optional">
+                        <xsd:annotation>
+                           <xsd:documentation>
+                              flag to indicate that permissions must also be inherited from parent matches
+                           </xsd:documentation>
+                        </xsd:annotation>
+                     </xsd:attribute>
                      <xsd:attributeGroup ref="xml:specialAttrs"/>
                   </xsd:complexType>
                </xsd:element>
